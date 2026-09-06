@@ -47,7 +47,11 @@ class RathoreTeliApp extends StatelessWidget {
               body: Center(child: CircularProgressIndicator()),
             );
           }
-          if (snapshot.hasData) return const HomeScreen();
+          if (snapshot.hasData) {
+            final user = snapshot.data!;
+            if (!user.emailVerified) return const VerifyEmailScreen();
+            return const HomeScreen();
+          }
           return const AuthScreen();
         },
       ),
@@ -93,6 +97,10 @@ class _AuthScreenState extends State<AuthScreen> {
           'isAdmin': false,
           'createdAt': FieldValue.serverTimestamp(),
         });
+        await cred.user!.sendEmailVerification();
+        if (mounted) {
+          _toast('वेरिफिकेशन लिंक ईमेल पर भेज दिया। इनबॉक्स/स्पैम देखें।');
+        }
       }
     } on FirebaseAuthException catch (e) {
       _toast(e.message ?? e.code);
@@ -164,6 +172,86 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 }
 
+// -------------------- EMAIL VERIFY --------------------
+class VerifyEmailScreen extends StatefulWidget {
+  const VerifyEmailScreen({super.key});
+
+  @override
+  State<VerifyEmailScreen> createState() => _VerifyEmailScreenState();
+}
+
+class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
+  bool sending = false;
+
+  Future<void> _refresh() async {
+    await FirebaseAuth.instance.currentUser?.reload();
+    setState(() {});
+  }
+
+  Future<void> _resend() async {
+    setState(() => sending = true);
+    try {
+      await FirebaseAuth.instance.currentUser?.sendEmailVerification();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('लिंक फिर भेज दिया गया।')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      }
+    } finally {
+      if (mounted) setState(() => sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final email = FirebaseAuth.instance.currentUser?.email ?? '';
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('ईमेल वेरिफाई करें'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => FirebaseAuth.instance.signOut(),
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.mark_email_unread, size: 72, color: kSaffron),
+            const SizedBox(height: 16),
+            Text(
+              'हमने $email पर वेरिफिकेशन लिंक भेजा है।\nमेल खोलकर लिंक दबाएँ, फिर नीचे बटन दबाएँ।',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: kSaffron, foregroundColor: Colors.white),
+                onPressed: _refresh,
+                child: const Text('मैंने ईमेल वेरिफाई कर लिया'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: sending ? null : _resend,
+              child: Text(sending ? 'भेज रहा है...' : 'लिंक दोबारा भेजें'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // -------------------- HOME --------------------
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -181,6 +269,31 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     super.initState();
     _tabs = TabController(length: 2, vsync: this);
     _loadAdmin();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showJaykar());
+  }
+
+  void _showJaykar() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('जय श्री चारभुजनाथ की', textAlign: TextAlign.center),
+        content: const Text(
+          'जय गोपाल जी की',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: kSaffron),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: kSaffron, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('प्रणाम'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadAdmin() async {
@@ -259,6 +372,27 @@ class _ProfileListViewState extends State<ProfileListView> {
   final _education = TextEditingController();
   final _minAge = TextEditingController();
   final _maxAge = TextEditingController();
+  bool canSeePhone = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPrivacy();
+  }
+
+  Future<void> _loadPrivacy() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final admin = userDoc.data()?['isAdmin'] == true;
+    final approved = await FirebaseFirestore.instance
+        .collection('profiles')
+        .where('userId', isEqualTo: uid)
+        .where('status', isEqualTo: 'Approved')
+        .limit(1)
+        .get();
+    if (mounted) setState(() => canSeePhone = admin || approved.docs.isNotEmpty);
+  }
 
   bool _match(Map<String, dynamic> data) {
     bool has(String q, dynamic v) =>
@@ -415,11 +549,22 @@ class _ProfileListViewState extends State<ProfileListView> {
                                 Text('शिक्षा: ${data['education'] ?? '-'}'),
                                 Text('व्यवसाय: ${data['occupation'] ?? '-'}'),
                                 Text('शहर: ${data['city'] ?? '-'}'),
+                                Text('पता: ${data['address'] ?? '-'}'),
+                                Text('पिता: ${data['fatherName'] ?? '-'}'),
+                                Text('माता: ${data['motherName'] ?? '-'}'),
+                                Text('वैवाहिक स्थिति: ${data['maritalStatus'] ?? '-'}'),
+                                Text('वार्षिक आय: ${data['income'] ?? '-'}'),
+                                Text('भाई: ${data['brothers'] ?? '-'} | बहन: ${data['sisters'] ?? '-'}'),
                                 const Divider(),
-                                Text(
-                                  'संपर्क: ${data['phone'] ?? '-'}',
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
-                                ),
+                                if (canSeePhone)
+                                  Text(
+                                    'संपर्क: ${data['phone'] ?? '-'}',
+                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                  )
+                                else
+                                  const Text(
+                                    'संपर्क नंबर तभी दिखेगा जब आपका अपना बायोडाटा एडमिन से अप्रूव हो जाएगा।',
+                                  ),
                               ],
                             ),
                           ),
@@ -428,7 +573,7 @@ class _ProfileListViewState extends State<ProfileListView> {
                               onPressed: () => Navigator.pop(context),
                               child: const Text('बंद'),
                             ),
-                            if ((data['phone'] ?? '').toString().isNotEmpty)
+                            if (canSeePhone && (data['phone'] ?? '').toString().isNotEmpty)
                               TextButton(
                                 onPressed: () {
                                   launchUrl(Uri.parse('tel:${data['phone']}'));
@@ -467,7 +612,14 @@ class _AddProfileScreenState extends State<AddProfileScreen> {
   final _occupation = TextEditingController();
   final _city = TextEditingController(text: 'रतलाम');
   final _phone = TextEditingController();
+  final _father = TextEditingController();
+  final _mother = TextEditingController();
+  final _income = TextEditingController();
+  final _brothers = TextEditingController();
+  final _sisters = TextEditingController();
+  final _address = TextEditingController();
   String _gender = 'वर';
+  String _marital = 'अविवाहित';
   bool saving = false;
   File? _photo;
 
@@ -500,7 +652,14 @@ class _AddProfileScreenState extends State<AddProfileScreen> {
         'education': _education.text.trim(),
         'occupation': _occupation.text.trim(),
         'city': _city.text.trim(),
+        'address': _address.text.trim(),
         'phone': _phone.text.trim(),
+        'fatherName': _father.text.trim(),
+        'motherName': _mother.text.trim(),
+        'maritalStatus': _marital,
+        'income': _income.text.trim(),
+        'brothers': _brothers.text.trim(),
+        'sisters': _sisters.text.trim(),
         'photoUrl': photoUrl,
         'status': 'Pending',
         'createdAt': FieldValue.serverTimestamp(),
@@ -574,7 +733,25 @@ class _AddProfileScreenState extends State<AddProfileScreen> {
             _field(_age, 'उम्र', type: TextInputType.number),
             _field(_education, 'शिक्षा'),
             _field(_occupation, 'व्यवसाय / नौकरी'),
-            _field(_city, 'शहर / पता'),
+            _field(_city, 'शहर'),
+            _field(_address, 'पूरा पता'),
+            _field(_father, 'पिता का नाम'),
+            _field(_mother, 'माता का नाम'),
+            DropdownButtonFormField<String>(
+              value: _marital,
+              decoration: const InputDecoration(labelText: 'वैवाहिक स्थिति', border: OutlineInputBorder()),
+              items: const [
+                DropdownMenuItem(value: 'अविवाहित', child: Text('अविवाहित')),
+                DropdownMenuItem(value: 'विवाहित', child: Text('विवाहित')),
+                DropdownMenuItem(value: 'तलाकशुदा', child: Text('तलाकशुदा')),
+                DropdownMenuItem(value: 'विधवा / विधुर', child: Text('विधवा / विधुर')),
+              ],
+              onChanged: (v) => setState(() => _marital = v ?? 'अविवाहित'),
+            ),
+            const SizedBox(height: 12),
+            _field(_income, 'वार्षिक आय'),
+            _field(_brothers, 'भाई कितने हैं', type: TextInputType.number),
+            _field(_sisters, 'बहन कितनी हैं', type: TextInputType.number),
             _field(_phone, 'मोबाइल नंबर', type: TextInputType.phone),
             SizedBox(
               width: double.infinity,
