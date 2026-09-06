@@ -1,7 +1,11 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// IMPORTANT:
@@ -240,90 +244,208 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 }
 
-// -------------------- LIST --------------------
-class ProfileListView extends StatelessWidget {
+// -------------------- LIST + FILTERS --------------------
+class ProfileListView extends StatefulWidget {
   final String gender;
   const ProfileListView({super.key, required this.gender});
 
   @override
+  State<ProfileListView> createState() => _ProfileListViewState();
+}
+
+class _ProfileListViewState extends State<ProfileListView> {
+  final _gotra = TextEditingController();
+  final _city = TextEditingController();
+  final _education = TextEditingController();
+  final _minAge = TextEditingController();
+  final _maxAge = TextEditingController();
+
+  bool _match(Map<String, dynamic> data) {
+    bool has(String q, dynamic v) =>
+        q.trim().isEmpty || (v ?? '').toString().toLowerCase().contains(q.trim().toLowerCase());
+    final age = int.tryParse('${data['age'] ?? ''}') ?? 0;
+    final minA = int.tryParse(_minAge.text) ?? 0;
+    final maxA = int.tryParse(_maxAge.text) ?? 99;
+    return has(_gotra.text, data['gotra']) &&
+        has(_city.text, data['city']) &&
+        has(_education.text, data['education']) &&
+        (age == 0 || (age >= minA && age <= maxA));
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('profiles')
-          .where('gender', isEqualTo: gender)
-          .where('status', isEqualTo: 'Approved')
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(child: Text('एरर: ${snapshot.error}'));
-        }
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final docs = snapshot.data!.docs;
-        if (docs.isEmpty) {
-          return Center(child: Text('$gender की कोई स्वीकृत प्रोफाइल नहीं है।'));
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.all(8),
-          itemCount: docs.length,
-          itemBuilder: (context, i) {
-            final data = docs[i].data() as Map<String, dynamic>;
-            final name = (data['name'] ?? '').toString();
-            return Card(
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: const Color(0xFFFFE0B2),
-                  child: Text(name.isNotEmpty ? name[0] : '?'),
-                ),
-                title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text(
-                  'गोत्र: ${data['gotra'] ?? '-'} | शिक्षा: ${data['education'] ?? '-'}\n'
-                  'शहर: ${data['city'] ?? '-'}',
-                ),
-                isThreeLine: true,
-                trailing: Text('${data['age'] ?? ''} वर्ष'),
-                onTap: () => showDialog(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    title: Text(name),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('स्वयं का गोत्र: ${data['gotra'] ?? '-'}'),
-                        Text('ननिहाल गोत्र: ${data['nanihalGotra'] ?? '-'}'),
-                        Text('उम्र: ${data['age'] ?? '-'} वर्ष'),
-                        Text('शिक्षा: ${data['education'] ?? '-'}'),
-                        Text('व्यवसाय: ${data['occupation'] ?? '-'}'),
-                        Text('शहर: ${data['city'] ?? '-'}'),
-                        const Divider(),
-                        Text(
-                          'संपर्क: ${data['phone'] ?? '-'}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('बंद'),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _gotra,
+                      decoration: const InputDecoration(
+                        labelText: 'गोत्र',
+                        isDense: true,
+                        border: OutlineInputBorder(),
                       ),
-                      if ((data['phone'] ?? '').toString().isNotEmpty)
-                        TextButton(
-                          onPressed: () {
-                            launchUrl(Uri.parse('tel:${data['phone']}'));
-                          },
-                          child: const Text('कॉल करें'),
-                        ),
-                    ],
+                      onChanged: (_) => setState(() {}),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _city,
+                      decoration: const InputDecoration(
+                        labelText: 'शहर',
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                ],
               ),
-            );
-          },
-        );
-      },
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _education,
+                      decoration: const InputDecoration(
+                        labelText: 'शिक्षा',
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 70,
+                    child: TextField(
+                      controller: _minAge,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'उम्र से',
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 70,
+                    child: TextField(
+                      controller: _maxAge,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'तक',
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('profiles')
+                .where('gender', isEqualTo: widget.gender)
+                .where('status', isEqualTo: 'Approved')
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text('एरर: ${snapshot.error}'));
+              }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final docs = snapshot.data!.docs.where((d) {
+                return _match(d.data() as Map<String, dynamic>);
+              }).toList();
+              if (docs.isEmpty) {
+                return Center(child: Text('${widget.gender} की कोई प्रोफाइल फिल्टर में नहीं मिली।'));
+              }
+              return ListView.builder(
+                padding: const EdgeInsets.all(8),
+                itemCount: docs.length,
+                itemBuilder: (context, i) {
+                  final data = docs[i].data() as Map<String, dynamic>;
+                  final name = (data['name'] ?? '').toString();
+                  final photo = (data['photoUrl'] ?? '').toString();
+                  return Card(
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: const Color(0xFFFFE0B2),
+                        backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
+                        child: photo.isNotEmpty ? null : Text(name.isNotEmpty ? name[0] : '?'),
+                      ),
+                      title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text(
+                        'गोत्र: ${data['gotra'] ?? '-'} | शिक्षा: ${data['education'] ?? '-'}\n'
+                        'शहर: ${data['city'] ?? '-'}',
+                      ),
+                      isThreeLine: true,
+                      trailing: Text('${data['age'] ?? ''} वर्ष'),
+                      onTap: () => showDialog(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          title: Text(name),
+                          content: SingleChildScrollView(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (photo.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: Image.network(photo, height: 160, fit: BoxFit.cover),
+                                  ),
+                                Text('स्वयं का गोत्र: ${data['gotra'] ?? '-'}'),
+                                Text('ननिहाल गोत्र: ${data['nanihalGotra'] ?? '-'}'),
+                                Text('उम्र: ${data['age'] ?? '-'} वर्ष'),
+                                Text('शिक्षा: ${data['education'] ?? '-'}'),
+                                Text('व्यवसाय: ${data['occupation'] ?? '-'}'),
+                                Text('शहर: ${data['city'] ?? '-'}'),
+                                const Divider(),
+                                Text(
+                                  'संपर्क: ${data['phone'] ?? '-'}',
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('बंद'),
+                            ),
+                            if ((data['phone'] ?? '').toString().isNotEmpty)
+                              TextButton(
+                                onPressed: () {
+                                  launchUrl(Uri.parse('tel:${data['phone']}'));
+                                },
+                                child: const Text('कॉल करें'),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
@@ -347,6 +469,7 @@ class _AddProfileScreenState extends State<AddProfileScreen> {
   final _phone = TextEditingController();
   String _gender = 'वर';
   bool saving = false;
+  File? _photo;
 
   Future<void> _save() async {
     if (_name.text.trim().isEmpty || _phone.text.trim().isEmpty) {
@@ -357,6 +480,16 @@ class _AddProfileScreenState extends State<AddProfileScreen> {
     }
     setState(() => saving = true);
     try {
+      String photoUrl = '';
+      if (_photo != null) {
+        final uid = FirebaseAuth.instance.currentUser?.uid ?? 'guest';
+        final ref = FirebaseStorage.instance
+            .ref()
+            .child('profiles')
+            .child('$uid-${DateTime.now().millisecondsSinceEpoch}.jpg');
+        await ref.putFile(_photo!);
+        photoUrl = await ref.getDownloadURL();
+      }
       await FirebaseFirestore.instance.collection('profiles').add({
         'userId': FirebaseAuth.instance.currentUser?.uid,
         'name': _name.text.trim(),
@@ -368,6 +501,7 @@ class _AddProfileScreenState extends State<AddProfileScreen> {
         'occupation': _occupation.text.trim(),
         'city': _city.text.trim(),
         'phone': _phone.text.trim(),
+        'photoUrl': photoUrl,
         'status': 'Pending',
         'createdAt': FieldValue.serverTimestamp(),
       });
@@ -404,6 +538,26 @@ class _AddProfileScreenState extends State<AddProfileScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            GestureDetector(
+              onTap: () async {
+                final x = await ImagePicker().pickImage(
+                  source: ImageSource.gallery,
+                  imageQuality: 70,
+                );
+                if (x != null) setState(() => _photo = File(x.path));
+              },
+              child: CircleAvatar(
+                radius: 48,
+                backgroundColor: const Color(0xFFFFE0B2),
+                backgroundImage: _photo != null ? FileImage(_photo!) : null,
+                child: _photo == null
+                    ? const Icon(Icons.camera_alt, size: 36, color: kSaffron)
+                    : null,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text('फोटो चुनें (गैलरी)'),
+            const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               value: _gender,
               decoration: const InputDecoration(labelText: 'प्रत्याशी', border: OutlineInputBorder()),
