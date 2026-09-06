@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "69364969230",
+    "project_id": "rathore-teli-ratlam",
+    "storage_bucket": "rathore-teli-ratlam.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:69364969230:android:7ee8b56a3d09e3c6ec315f",
+        "android_client_info": {
+          "package_name": "com.mycompany.rathoretelisamajratlam"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBzhb_Oql0-oXffHtf9ImuVULQUIQZIu48"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
