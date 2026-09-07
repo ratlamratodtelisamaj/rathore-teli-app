@@ -40,7 +40,7 @@ class RathoreTeliApp extends StatelessWidget {
         ),
       ),
       home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
+        stream: FirebaseAuth.instance.userChanges(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(
@@ -185,7 +185,17 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
 
   Future<void> _refresh() async {
     await FirebaseAuth.instance.currentUser?.reload();
-    setState(() {});
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && user.emailVerified && mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        (_) => false,
+      );
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('अभी वेरिफाई नहीं हुआ। मेल का लिंक दबाकर फिर कोशिश करें।')),
+      );
+    }
   }
 
   Future<void> _resend() async {
@@ -546,6 +556,9 @@ class _ProfileListViewState extends State<ProfileListView> {
                                 Text('स्वयं का गोत्र: ${data['gotra'] ?? '-'}'),
                                 Text('ननिहाल गोत्र: ${data['nanihalGotra'] ?? '-'}'),
                                 Text('उम्र: ${data['age'] ?? '-'} वर्ष'),
+                                Text('जन्मतिथि: ${data['dob'] ?? '-'}'),
+                                Text('जन्म समय: ${data['birthTime'] ?? '-'}'),
+                                Text('जन्म स्थान: ${data['birthPlace'] ?? '-'}'),
                                 Text('शिक्षा: ${data['education'] ?? '-'}'),
                                 Text('व्यवसाय: ${data['occupation'] ?? '-'}'),
                                 Text('शहर: ${data['city'] ?? '-'}'),
@@ -618,6 +631,9 @@ class _AddProfileScreenState extends State<AddProfileScreen> {
   final _brothers = TextEditingController();
   final _sisters = TextEditingController();
   final _address = TextEditingController();
+  final _dob = TextEditingController();
+  final _birthTime = TextEditingController();
+  final _birthPlace = TextEditingController();
   String _gender = 'वर';
   String _marital = 'अविवाहित';
   bool saving = false;
@@ -653,6 +669,9 @@ class _AddProfileScreenState extends State<AddProfileScreen> {
         'occupation': _occupation.text.trim(),
         'city': _city.text.trim(),
         'address': _address.text.trim(),
+        'dob': _dob.text.trim(),
+        'birthTime': _birthTime.text.trim(),
+        'birthPlace': _birthPlace.text.trim(),
         'phone': _phone.text.trim(),
         'fatherName': _father.text.trim(),
         'motherName': _mother.text.trim(),
@@ -731,6 +750,9 @@ class _AddProfileScreenState extends State<AddProfileScreen> {
             _field(_gotra, 'स्वयं का गोत्र'),
             _field(_nanihal, 'ननिहाल का गोत्र'),
             _field(_age, 'उम्र', type: TextInputType.number),
+            _field(_dob, 'जन्मतिथि (उदा. 10/03/1993)'),
+            _field(_birthTime, 'जन्म समय (उदा. 11:30 AM)'),
+            _field(_birthPlace, 'जन्म स्थान'),
             _field(_education, 'शिक्षा'),
             _field(_occupation, 'व्यवसाय / नौकरी'),
             _field(_city, 'शहर'),
