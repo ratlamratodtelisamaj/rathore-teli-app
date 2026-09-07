@@ -404,6 +404,19 @@ class _ProfileListViewState extends State<ProfileListView> {
     if (mounted) setState(() => canSeePhone = admin || approved.docs.isNotEmpty);
   }
 
+  Widget _miniChip(String t) {
+    final s = t.trim();
+    if (s.isEmpty || s == '-') return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF3E0),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(s, style: const TextStyle(fontSize: 11, color: kSaffron)),
+    );
+  }
+
   bool _match(Map<String, dynamic> data) {
     bool has(String q, dynamic v) =>
         q.trim().isEmpty || (v ?? '').toString().toLowerCase().contains(q.trim().toLowerCase());
@@ -519,81 +532,72 @@ class _ProfileListViewState extends State<ProfileListView> {
                 return Center(child: Text('${widget.gender} की कोई प्रोफाइल फिल्टर में नहीं मिली।'));
               }
               return ListView.builder(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 88),
                 itemCount: docs.length,
                 itemBuilder: (context, i) {
                   final data = docs[i].data() as Map<String, dynamic>;
                   final name = (data['name'] ?? '').toString();
                   final photo = (data['photoUrl'] ?? '').toString();
-                  return Card(
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: const Color(0xFFFFE0B2),
-                        backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
-                        child: photo.isNotEmpty ? null : Text(name.isNotEmpty ? name[0] : '?'),
-                      ),
-                      title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text(
-                        'गोत्र: ${data['gotra'] ?? '-'} | शिक्षा: ${data['education'] ?? '-'}\n'
-                        'शहर: ${data['city'] ?? '-'}',
-                      ),
-                      isThreeLine: true,
-                      trailing: Text('${data['age'] ?? ''} वर्ष'),
-                      onTap: () => showDialog(
-                        context: context,
-                        builder: (_) => AlertDialog(
-                          title: Text(name),
-                          content: SingleChildScrollView(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (photo.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: Image.network(photo, height: 160, fit: BoxFit.cover),
-                                  ),
-                                Text('स्वयं का गोत्र: ${data['gotra'] ?? '-'}'),
-                                Text('ननिहाल गोत्र: ${data['nanihalGotra'] ?? '-'}'),
-                                Text('उम्र: ${data['age'] ?? '-'} वर्ष'),
-                                Text('जन्मतिथि: ${data['dob'] ?? '-'}'),
-                                Text('जन्म समय: ${data['birthTime'] ?? '-'}'),
-                                Text('जन्म स्थान: ${data['birthPlace'] ?? '-'}'),
-                                Text('शिक्षा: ${data['education'] ?? '-'}'),
-                                Text('व्यवसाय: ${data['occupation'] ?? '-'}'),
-                                Text('शहर: ${data['city'] ?? '-'}'),
-                                Text('पता: ${data['address'] ?? '-'}'),
-                                Text('पिता: ${data['fatherName'] ?? '-'}'),
-                                Text('माता: ${data['motherName'] ?? '-'}'),
-                                Text('वैवाहिक स्थिति: ${data['maritalStatus'] ?? '-'}'),
-                                Text('वार्षिक आय: ${data['income'] ?? '-'}'),
-                                Text('भाई: ${data['brothers'] ?? '-'} | बहन: ${data['sisters'] ?? '-'}'),
-                                const Divider(),
-                                if (canSeePhone)
-                                  Text(
-                                    'संपर्क: ${data['phone'] ?? '-'}',
-                                    style: const TextStyle(fontWeight: FontWeight.bold),
-                                  )
-                                else
-                                  const Text(
-                                    'संपर्क नंबर तभी दिखेगा जब आपका अपना बायोडाटा एडमिन से अप्रूव हो जाएगा।',
-                                  ),
-                              ],
-                            ),
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Material(
+                      color: Colors.white,
+                      elevation: 2,
+                      borderRadius: BorderRadius.circular(16),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ProfileDetailScreen(data: data, canSeePhone: canSeePhone),
                           ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('बंद'),
-                            ),
-                            if (canSeePhone && (data['phone'] ?? '').toString().isNotEmpty)
-                              TextButton(
-                                onPressed: () {
-                                  launchUrl(Uri.parse('tel:${data['phone']}'));
-                                },
-                                child: const Text('कॉल करें'),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: photo.isNotEmpty
+                                    ? Image.network(photo, width: 78, height: 78, fit: BoxFit.cover)
+                                    : Container(
+                                        width: 78,
+                                        height: 78,
+                                        color: const Color(0xFFFFE0B2),
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          name.isNotEmpty ? name[0] : '?',
+                                          style: const TextStyle(fontSize: 28, color: kSaffron, fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
                               ),
-                          ],
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${data['age'] ?? '-'} वर्ष  •  ${data['city'] ?? '-'}',
+                                      style: TextStyle(color: Colors.grey.shade700),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 6,
+                                      children: [
+                                        _miniChip('${data['gotra'] ?? '-'} गोत्र'),
+                                        _miniChip('${data['education'] ?? '-'}'),
+                                        _miniChip('${data['maritalStatus'] ?? ''}'),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right, color: kSaffron),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -604,6 +608,129 @@ class _ProfileListViewState extends State<ProfileListView> {
           ),
         ),
       ],
+    );
+  }
+}
+
+// -------------------- PROFILE DETAIL --------------------
+class ProfileDetailScreen extends StatelessWidget {
+  final Map<String, dynamic> data;
+  final bool canSeePhone;
+  const ProfileDetailScreen({super.key, required this.data, required this.canSeePhone});
+
+  Widget _block(String title, List<List<String>> rows) {
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      elevation: 0,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(color: kSaffron, fontWeight: FontWeight.w700, fontSize: 14)),
+            const SizedBox(height: 8),
+            ...rows.map((r) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(width: 120, child: Text(r[0], style: TextStyle(color: Colors.grey.shade600))),
+                      Expanded(child: Text(r[1], style: const TextStyle(fontWeight: FontWeight.w600))),
+                    ],
+                  ),
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _v(String k) {
+    final t = (data[k] ?? '').toString().trim();
+    return t.isEmpty ? '-' : t;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = _v('name');
+    final photo = (data['photoUrl'] ?? '').toString();
+    return Scaffold(
+      backgroundColor: const Color(0xFFFFF8F1),
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 260,
+            pinned: true,
+            backgroundColor: kSaffron,
+            flexibleSpace: FlexibleSpaceBar(
+              title: Text(name == '-' ? 'बायोडाटा' : name, style: const TextStyle(fontSize: 16)),
+              background: photo.isNotEmpty
+                  ? Image.network(photo, fit: BoxFit.cover)
+                  : Container(
+                      color: const Color(0xFFFFCC80),
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.person, size: 96, color: Colors.white),
+                    ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Column(
+              children: [
+                const SizedBox(height: 16),
+                _block('व्यक्तिगत जानकारी', [
+                  ['उम्र', '${_v('age')} वर्ष'],
+                  ['वैवाहिक स्थिति', _v('maritalStatus')],
+                  ['शिक्षा', _v('education')],
+                  ['व्यवसाय', _v('occupation')],
+                  ['वार्षिक आय', _v('income')],
+                ]),
+                _block('जन्म विवरण', [
+                  ['जन्मतिथि', _v('dob')],
+                  ['जन्म समय', _v('birthTime')],
+                  ['जन्म स्थान', _v('birthPlace')],
+                ]),
+                _block('गोत्र व परिवार', [
+                  ['स्वयं का गोत्र', _v('gotra')],
+                  ['ननिहाल गोत्र', _v('nanihalGotra')],
+                  ['पिता', _v('fatherName')],
+                  ['माता', _v('motherName')],
+                  ['भाई / बहन', '${_v('brothers')} / ${_v('sisters')}'],
+                ]),
+                _block('पता', [
+                  ['शहर', _v('city')],
+                  ['पूरा पता', _v('address')],
+                ]),
+                _block('संपर्क', [
+                  [
+                    'मोबाइल',
+                    canSeePhone
+                        ? _v('phone')
+                        : 'अप्रूव्ड सदस्य / एडमिन को ही दिखेगा'
+                  ],
+                ]),
+                if (canSeePhone && _v('phone') != '-')
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(backgroundColor: kSaffron, foregroundColor: Colors.white),
+                        onPressed: () => launchUrl(Uri.parse('tel:${_v('phone')}')),
+                        icon: const Icon(Icons.call),
+                        label: const Text('कॉल करें'),
+                      ),
+                    ),
+                  )
+                else
+                  const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
